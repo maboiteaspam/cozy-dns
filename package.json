@@ -1,0 +1,16 @@
+{
+  "name": "cozy-dns",
+  "version": "1.0.0",
+  "description": ".",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "maboiteaspam",
+  "license": "WTFPL",
+  "dependencies": {
+    "cozy-stub": "^1.0.0",
+    "native-dns": "^0.7.0",
+    "path-extra": "^0.3.0"
+  }
+}
