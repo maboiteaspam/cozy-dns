@@ -1,0 +1,51 @@
+<html>
+<head></head>
+<body>
+    Cozy-dns
+
+    <p>
+        host a new domain
+        <br/><input type="text" name="add_domain" />
+        <br/><input type="submit" value="Add" />
+    </p>
+
+    <p>
+        resolve a domain
+        <br/><input type="text" name="resolve_domain" />
+        <br/><input type="submit" value="Resolve" />
+        <br/><span class="resolved_ips"></span>
+    </p>
+
+<script src="jquery-2.1.3.min.js"></script>
+<script>
+    $('input[name="add_domain"]').on('keyup', function(){
+        $(this).css('border-color', '');
+    });
+    $('input[value="Add"]').on('click', function(){
+        var domain = $('input[name="add_domain"]').val();
+        $.post('add', {domain: domain}, function(data){
+            data = JSON.parse(data);
+            if (!data) {
+                $('input[name="add_domain"]')
+                        .css('border-color','red')
+            }
+        });
+    });
+    $('input[value="Resolve"]').on('click', function(){
+        var domain = $('input[name="resolve_domain"]').val();
+        $('.resolved_ips').html('');
+        $.post('resolve', {domain: domain}, function(data){
+            if (!data) {
+                $('.resolved_ips').html( 'timed out !' );
+            } else if(!data.length) {
+                $('.resolved_ips').html( 'Not resolved !' );
+            } else {
+                $('.resolved_ips').html( data.join(', ') );
+            }
+        });
+
+    });
+</script>
+
+</body>
+</html>

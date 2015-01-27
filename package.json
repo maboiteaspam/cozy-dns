@@ -9,7 +9,10 @@
   "author": "maboiteaspam",
   "license": "WTFPL",
   "dependencies": {
+    "body-parser": "^1.10.2",
     "cozy-stub": "^1.0.0",
+    "domain-name-parser": "0.0.5",
+    "express": "^4.11.1",
     "native-dns": "^0.7.0",
     "path-extra": "^0.3.0"
   }
