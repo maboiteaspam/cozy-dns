@@ -1,7 +1,24 @@
 # Cozy-dns
 
-Installs a DNS server on top of your cozy instance.
+A frontend UI to manage a bunch of DNS&DHT able node.
 
-Provides a web page to register a domain, then try to resolve it.
+Create a peer.
 
-It s my playground for dns.
+It will connect to a local DHT table.
+
+Attach it a domain.
+
+Try to resolve the domain from this node or a new you d create.
+
+
+### Run it
+
+```
+mkdir myplayground
+cd myplayground
+npm i maboiteaspam/cozy-dns
+node index.js
+```
+
+### /!\ It s a work in progress
+
