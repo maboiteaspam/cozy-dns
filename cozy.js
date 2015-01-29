@@ -20,8 +20,9 @@ var queryDns = function(dnsQuery, dnsSolver, then){
     type: 'A'
   });
 
-  console.error(dnsQuery)
-  console.error(dnsSolver)
+  console.log('Starts a new dns query ' + dnsQuery)
+  console.log('DNS Server is ')
+  console.log(dnsSolver)
 
   var dReq = dns.Request({
     question: question,
@@ -104,12 +105,33 @@ var DDnsConsumer = function(opts){
     });
     dnsServer.serve(opts.dnsPort);
 
-
+    var dhtAddress = this.getDhtAddress();
     dhTable.listen(opts.dhtPort, opts.hostname, function () {
-      console.log('now listening')
+      console.log('now listening ' + dhtAddress)
+    });
+    dhTable.on('ready', function () {
+      console.log('dht ready ' + dhtAddress)
+    });
+    dhTable.on('peer', function (addr, hash, from) {
+      console.log('found peer ' + dhtAddress + ' :: ' + addr + ' through ' + from)
+    });
+    dhTable.on('error', function (addr, hash, from) {
+      console.log('error ' + dhtAddress)
+    });
+    dhTable.on('node', function (addr, hash, from) {
+      console.log('node ' + dhtAddress)
+    });
+    dhTable.on('warning', function (addr, hash, from) {
+      console.log('warning ' + dhtAddress)
+    });
+    dhTable.on('announce', function (addr, hash, from) {
+      console.log('announce ' + dhtAddress)
     });
   };
 
+  this.getDhtAddress = function(){
+    return opts.hostname + ':' + opts.dhtPort;
+  };
   this.getDhTable = function(){
     return dhTable;
   };
@@ -145,6 +167,10 @@ var cozyHandler = {
       var peer = new DDnsConsumer(peerOpts);
       peer.setup();
       cozyHandler.peers.push(peer);
+      if(cozyHandler.peers.length>1) {
+        peer.getDhTable().addNode(cozyHandler.peers[0].getDhtAddress(), '');
+        peer.getDhTable()._bootstrap([cozyHandler.peers[0].getDhtAddress()]);
+      }
       res.status(200).send('peer'+ (cozyHandler.peers.length-1));
     });
     app.get('/:peer/list', function( req, res ){
