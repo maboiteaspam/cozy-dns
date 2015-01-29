@@ -1,50 +1,129 @@
 <html>
-<head></head>
+<head>
+    <style type="text/css">
+        .template{
+            display:none;
+        }
+        .peer{
+            display: inline-block;
+            margin-left: 10px;;
+        }
+    </style>
+</head>
 <body>
     Cozy-dns
 
-    <p>
-        host a new domain
-        <br/><input type="text" name="add_domain" />
-        <br/><input type="submit" value="Add" />
-    </p>
+    <button class="peer_create">Add peer</button>
+    <div class="peers"></div>
 
-    <p>
-        resolve a domain
-        <br/><input type="text" name="resolve_domain" />
-        <br/><input type="submit" value="Resolve" />
-        <br/><span class="resolved_ips"></span>
-    </p>
+    <div class="peer template">
+
+        <span class="peerIndex"></span>
+
+        <p>
+            host a new domain
+            <br/><input type="text" name="add_domain" />
+            <br/><input type="submit" value="Add" />
+        </p>
+
+        <p>
+            resolve a domain
+            <br/><input type="text" name="resolve_domain" />
+            <br/><input type="submit" value="Resolve" />
+            <br/><span class="resolved_ips"></span>
+        </p>
+
+        <p class="peerDomains"></p>
+
+        <button class="remove_button">Remove peer</button>
+
+    </div>
 
 <script src="jquery-2.1.3.min.js"></script>
 <script>
-    $('input[name="add_domain"]').on('keyup', function(){
-        $(this).css('border-color', '');
-    });
-    $('input[value="Add"]').on('click', function(){
-        var domain = $('input[name="add_domain"]').val();
-        $.post('add', {domain: domain}, function(data){
-            data = JSON.parse(data);
-            if (!data) {
-                $('input[name="add_domain"]')
-                        .css('border-color','red')
-            }
-        });
-    });
-    $('input[value="Resolve"]').on('click', function(){
-        var domain = $('input[name="resolve_domain"]').val();
-        $('.resolved_ips').html('');
-        $.post('resolve', {domain: domain}, function(data){
-            if (!data) {
-                $('.resolved_ips').html( 'timed out !' );
-            } else if(!data.length) {
-                $('.resolved_ips').html( 'Not resolved !' );
-            } else {
-                $('.resolved_ips').html( data.join(', ') );
-            }
-        });
+    (function(){
+        var template = $(".peer.template");
+        template.remove();
+        template.removeClass('template');
 
-    });
+        var peers = $(".peers");
+
+        var createNewPeerUI = function (peerIndex){
+            var nTemplate = template.clone();
+
+            nTemplate.attr('peer-index', peerIndex);
+
+            var nDomainText = nTemplate.find('input[name="add_domain"]');
+            var rDomainText = nTemplate.find('input[name="resolve_domain"]');
+            var rDomainError = nTemplate.find('.resolved_ips');
+            var removeButton = nTemplate.find('.remove_button');
+
+            nTemplate.find('.peerIndex').html(peerIndex);
+
+            removeButton.on('click', function(){
+                $.post(peerIndex + '/remove', function(){
+                    rDomainText.unbind();
+                    nDomainText.unbind();
+                    rDomainError.unbind();
+                    nTemplate.unbind();
+                    nTemplate.remove();
+                });
+            });
+
+            nDomainText.on('keyup', function(){
+                nDomainText.css('border-color', '');
+            });
+
+            nTemplate.find('input[value="Add"]').on('click', function(){
+                var domain = nDomainText.val();
+                $.post(peerIndex + '/add', {domain: domain}, function(data){
+                    data = JSON.parse(data);
+                    if (!data) {
+                        nDomainText.css('border-color','red');
+                    }
+                    $.get(peerIndex + '/list', function(data){
+                        nTemplate.find('.peerDomains')
+                                .html(JSON.stringify(data,null,4))
+                    });
+                });
+            });
+
+            nTemplate.find('input[value="Resolve"]').on('click', function(){
+                var domain = rDomainText.val();
+                rDomainError.html('');
+                $.post(peerIndex + '/resolve', {domain: domain}, function(data){
+                    if (!data) {
+                        rDomainError.html( 'timed out !' );
+                    } else if(!data.length) {
+                        rDomainError.html( 'Not resolved !' );
+                    } else {
+                        rDomainError.html( data.join(', ') );
+                    }
+                });
+            });
+
+
+            $.get(peerIndex + '/list', function(data){
+                nTemplate.find('.peerDomains').html(JSON.stringify(data,null,4))
+            });
+
+            return nTemplate;
+        };
+
+        $(".peer_create").on('click', function(){
+            $.post('peers/add' , function(peerIndex){
+                var peerUI = createNewPeerUI(peerIndex);
+                peerUI.appendTo(peers);
+            });
+        });
+        $.get("peers" , function(data){
+            $(data).each(function(k,v){
+                var peerUI = createNewPeerUI(v);
+                peerUI.appendTo(peers);
+            })
+        });
+    })();
+
 </script>
 
 </body>

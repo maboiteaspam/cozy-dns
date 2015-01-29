@@ -9,6 +9,7 @@
   "author": "maboiteaspam",
   "license": "WTFPL",
   "dependencies": {
+    "bittorrent-dht": "^2.6.4",
     "body-parser": "^1.10.2",
     "cozy-stub": "^1.0.0",
     "domain-name-parser": "0.0.5",
