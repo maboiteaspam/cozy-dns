@@ -38,8 +38,15 @@ node index.js
 
 ### Problems to solve
 
+##### Weird behavior of the nodes, choked nodes ?
+
 Sometimes you create 10 nodes, then some of them starts to have distance: -1 towards one to all other nodes.
 
 From that moment this peer seems dead. Resolving again and again does not help to make it work again.
 
 At best the node can be fixed and work again when it is asked to resolve a domain.
+
+##### Test IRL
+
+Need to find some way to test it in real life in order to evaluate its behavior.
+
