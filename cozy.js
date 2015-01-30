@@ -19,7 +19,6 @@ DHT.K = 1;
 
 
 var is_valid_dns = function(dns_name){
-  return true;
   var parsedDomain = parse(dns_name);
   return ! parsedDomain.tokenized.length < 2;
 };
