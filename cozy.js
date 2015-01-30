@@ -1,6 +1,8 @@
 // Declare the cozy app handler
 'use strict';
 
+//process.env['DEBUG'] = 'bittorrent-dht';
+
 var pathExtra = require('path-extra');
 var express = require('express');
 var http = require('http');
@@ -8,6 +10,13 @@ var bodyParser = require('body-parser');
 var parse = require('domain-name-parser');
 var dns = require('native-dns');
 var DHT = require('bittorrent-dht');
+var createTorrent = require('create-torrent');
+var parseTorrent = require('parse-torrent');
+
+
+// reduce K nodes requirements
+DHT.K = 1;
+
 
 var is_valid_dns = function(dns_name){
   var parsedDomain = parse(dns_name);
@@ -20,14 +29,14 @@ var queryDns = function(dnsQuery, dnsSolver, then){
     type: 'A'
   });
 
-  console.log('Starts a new dns query ' + dnsQuery)
-  console.log('DNS Server is ')
-  console.log(dnsSolver)
+  console.log('Starts a new dns query ' + dnsQuery);
+  console.log('DNS Server is ');
+  console.log(dnsSolver);
 
   var dReq = dns.Request({
     question: question,
     server: dnsSolver,
-    timeout: 1000
+    timeout: 100000
   });
 
   dReq.on('timeout', function () {
@@ -61,13 +70,14 @@ var DDnsConsumer = function(opts){
 
   var dnsServer = dns.createServer();
   var dhTable = new DHT(dhtOpts);
+  var transactions = {};
 
   this.listDns = function(){
     return localDns;
   };
 
   this.addDns = function(newDns){
-    if ( is_valid_dns(newDns) ) {
+    if ( is_valid_dns(newDns) && localDns.indexOf(newDns) === -1) {
       localDns.push(newDns);
       return true;
     }
@@ -81,6 +91,16 @@ var DDnsConsumer = function(opts){
     then('invalid dns', false);
   };
 
+  this.announceAllDns = function(){
+    localDns.forEach(function(dns){
+      console.log('announcing ' + dns);
+      createTorrent(new Buffer(dns), {name:dns}, function (err, torrent) {
+        torrent = parseTorrent(torrent);
+        dhTable.announce(torrent.infoHash, opts.dhtPort);
+      });
+    });
+  };
+
   this.setup = function(){
     dnsServer.on('request', function (request, response) {
 
@@ -89,16 +109,24 @@ var DDnsConsumer = function(opts){
       }
 
       var qDomain = request.question[0].name;
-      if (localDns.indexOf(qDomain) === -1 ) {
-        return response.send();
+      if (localDns.indexOf(qDomain) > -1 ) {
+        response.answer.push(dns.A({
+          name: qDomain,
+          address: opts.hostname,
+          ttl: 1
+        }));
+        response.send();
+      } else {
+        // search via DHT table
+        createTorrent(new Buffer(qDomain), {name:qDomain}, function (err, torrent) {
+          torrent = parseTorrent(torrent);
+          dhTable.lookup(torrent.infoHash );
+          transactions[torrent.infoHash] = {
+            name:qDomain,
+            response:response
+          };
+        });
       }
-
-      response.answer.push(dns.A({
-        name: qDomain,
-        address: opts.hostname,
-        ttl: 1
-      }));
-      response.send();
     });
     dnsServer.on('error', function (err) {
       console.log(err.stack);
@@ -107,33 +135,70 @@ var DDnsConsumer = function(opts){
 
     var dhtAddress = this.getDhtAddress();
     dhTable.listen(opts.dhtPort, opts.hostname, function () {
-      console.log('now listening ' + dhtAddress)
+      console.log(dhtAddress + ' listening ');
     });
     dhTable.on('ready', function () {
-      console.log('dht ready ' + dhtAddress)
+      console.log(dhtAddress + ' ready ');
     });
     dhTable.on('peer', function (addr, hash, from) {
-      console.log('found peer ' + dhtAddress + ' :: ' + addr + ' through ' + from)
-    });
-    dhTable.on('error', function (addr, hash, from) {
-      console.log('error ' + dhtAddress)
+      console.log(dhtAddress + ' peer ');
+      console.log(addr, from)
     });
     dhTable.on('node', function (addr, hash, from) {
-      console.log('node ' + dhtAddress)
+      console.log(dhtAddress + ' node ');
     });
-    dhTable.on('warning', function (addr, hash, from) {
-      console.log('warning ' + dhtAddress)
+    dhTable.on('error', function (err) {
+      console.log(dhtAddress + ' error ');
+      console.log(err)
+    });
+    dhTable.on('warning', function (err) {
+      console.log(dhtAddress + ' warning ');
     });
     dhTable.on('announce', function (addr, hash, from) {
-      console.log('announce ' + dhtAddress)
+      console.log(dhtAddress + ' announce ');
+      console.log(addr, hash, from)
+    });
+    dhTable.on('peer', function (addr, hash, from) {
+      if (transactions[hash] ) {
+        var response = transactions[hash].response;
+        var name = transactions[hash].name;
+        response.answer.push(dns.A({
+          name: name,
+          address: from,
+          ttl: 1
+        }));
+        delete transactions[hash];
+      }
     });
   };
 
+  this.getDnsAddress = function(){
+    return opts.hostname + ':' + opts.dnsPort;
+  };
   this.getDhtAddress = function(){
     return opts.hostname + ':' + opts.dhtPort;
   };
   this.getDhTable = function(){
     return dhTable;
+  };
+  this.getDhStatus = function(){
+    var nodes = [];
+    dhTable.nodes.toArray().forEach(function(node) {
+      nodes.push({
+        addr: node.addr,
+        distance: node.distance===undefined?-1:node.distance
+      })
+    });
+
+    return {
+      dhtAddress:this.getDhtAddress(),
+      dnsAddress:this.getDnsAddress(),
+      isReady: dhTable.ready,
+      nodes: nodes,
+      nodesCount: nodes.length,
+      peersCount: Object.keys(dhTable.peers).length,
+      announcesCount:Object.keys(dhTable.tables).length
+    };
   };
   this.getDnsServer = function(){
     return dnsServer;
@@ -141,8 +206,9 @@ var DDnsConsumer = function(opts){
 
 };
 
+var lastPeerIndex = 0;
 var cozyHandler = {
-  peers: [],
+  peers: {},
   // put your own properties there
   start: function(options, done) {
 
@@ -153,12 +219,16 @@ var cozyHandler = {
     app.use(bodyParser.urlencoded({ extended: false }));
     app.get('/peers', function( req, res ){
       var peerList = [];
-      cozyHandler.peers.forEach(function(peer, index){
-        peerList.push('peer'+index);
+      Object.keys(cozyHandler.peers).forEach(function(peerIndex){
+        peerList.push(peerIndex);
       });
       res.send(peerList);
     });
     app.post('/peers/add', function( req, res ){
+
+      var peerIndex = 'peer' + lastPeerIndex;
+      lastPeerIndex++;
+
       var peerOpts = {
         hostname: options.hostname || '127.0.0.1',
         dnsPort: options.getPort(),
@@ -166,17 +236,41 @@ var cozyHandler = {
       };
       var peer = new DDnsConsumer(peerOpts);
       peer.setup();
-      cozyHandler.peers.push(peer);
-      if(cozyHandler.peers.length>1) {
-        peer.getDhTable().addNode(cozyHandler.peers[0].getDhtAddress(), '');
-        peer.getDhTable()._bootstrap([cozyHandler.peers[0].getDhtAddress()]);
+
+      cozyHandler.peers[peerIndex] = peer;
+      if(Object.keys(cozyHandler.peers).length>1) {
+        var firstPeer = cozyHandler.peers[ Object.keys(cozyHandler.peers)[0] ];
+        peer.getDhTable()._bootstrap([firstPeer.getDhtAddress()]);
       }
-      res.status(200).send('peer'+ (cozyHandler.peers.length-1));
+      res.status(200).send( peerIndex );
+    });
+    app.get('/peers/dht_status', function( req, res ){
+      var peersDhtStatus = {};
+      Object.keys(cozyHandler.peers).forEach(function(peerIndex){
+        peersDhtStatus[peerIndex] = cozyHandler.peers[peerIndex].getDhStatus();
+      });
+      return res.send( peersDhtStatus );
+    });
+    app.post('/peers/dht_announce', function( req, res ){
+      Object.keys(cozyHandler.peers).forEach(function(peerIndex){
+        cozyHandler.peers[peerIndex].announceAllDns();
+      });
+      return res.send( true );
+    });
+    app.get('/:peer/dht_status', function( req, res ){
+
+      var peerId = req.params.peer;
+
+      var peer = cozyHandler.peers[peerId];
+
+      if ( peer ) {
+        return res.send( peer.getDhStatus() );
+      }
+      res.status(404).send(false);
     });
     app.get('/:peer/list', function( req, res ){
 
       var peerId = req.params.peer;
-      peerId = peerId.replace(/[^0-9]+/, '');
 
       var peer = cozyHandler.peers[peerId];
 
@@ -189,7 +283,6 @@ var cozyHandler = {
       var newDns = req.body.domain;
 
       var peerId = req.params.peer;
-      peerId = peerId.replace(/[^0-9]+/, '');
 
       var peer = cozyHandler.peers[peerId];
 
@@ -201,14 +294,13 @@ var cozyHandler = {
     app.post('/:peer/remove', function( req, res ){
 
       var peerId = req.params.peer;
-      peerId = peerId.replace(/[^0-9]+/, '');
 
       var peer = cozyHandler.peers[peerId];
 
       if ( peer ) {
         peer.getDnsServer().close();
         peer.getDhTable().destroy();
-        cozyHandler.peers.splice(peerId,1);
+        delete cozyHandler.peers[peerId];
         return res.send( true );
       }
       res.status(404).send(false);
@@ -217,7 +309,6 @@ var cozyHandler = {
       var dnsToSolve = req.body.domain;
 
       var peerId = req.params.peer;
-      peerId = peerId.replace(/[^0-9]+/, '');
 
       var peer = cozyHandler.peers[peerId];
 
@@ -240,7 +331,8 @@ var cozyHandler = {
   },
   stop: function(done) {
     // put stop logic here
-    cozyHandler.peers.forEach(function(peer){
+    Object.keys(cozyHandler.peers).forEach(function(peerIndex){
+      var peer = cozyHandler.peers[peerIndex];
       peer.getDnsServer().close();
       peer.getDhTable().destroy();
     });

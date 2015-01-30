@@ -6,7 +6,11 @@
         }
         .peer{
             display: inline-block;
-            margin-left: 10px;;
+            margin-left: 10px;
+            width: 300px;
+        }
+        .peerDhtNodeList{
+            white-space: pre;
         }
     </style>
 </head>
@@ -18,7 +22,13 @@
 
     <div class="peer template">
 
-        <span class="peerIndex"></span>
+        <b class="peerIndex"></b>
+
+        <p>
+            dhtAddress : <b class="dhtAddress"></b>
+            <br/>
+            DnsAddress : <b class="dnsAddress"></b>
+        </p>
 
         <p>
             host a new domain
@@ -34,6 +44,21 @@
         </p>
 
         <p class="peerDomains"></p>
+
+        <p class="peerDhtReady">DHT not ready</p>
+        <table>
+            <tr>
+                <th>nodes</th>
+                <th>peers</th>
+                <th>ann</th>
+            </tr>
+            <tr>
+                <td class="peerDhtNodes">0</td>
+                <td class="peerDhtPeers">0</td>
+                <td class="peerDhtAnnounces">0</td>
+            </tr>
+        </table>
+        <p class="peerDhtNodeList"></p>
 
         <button class="remove_button">Remove peer</button>
 
@@ -109,6 +134,18 @@
 
             return nTemplate;
         };
+        var updatePeerStatus = function(peerIndex, status){
+            var peer = peers.find("[peer-index='"+peerIndex+"']");
+            if( peer.length ){
+                peer.find(".dhtAddress").html( status.dhtAddress );
+                peer.find(".dnsAddress").html( status.dnsAddress );
+                peer.find(".peerDhtReady").html( (status.isReady ? 'DHT ready' : 'DHT not ready') );
+                peer.find(".peerDhtNodes").html( status.nodesCount );
+                peer.find(".peerDhtPeers").html( status.peersCount );
+                peer.find(".peerDhtAnnounces").html( status.announcesCount );
+                peer.find(".peerDhtNodeList").html( JSON.stringify(status.nodes, null, 1) );
+            }
+        };
 
         $(".peer_create").on('click', function(){
             $.post('peers/add' , function(peerIndex){
@@ -122,6 +159,17 @@
                 peerUI.appendTo(peers);
             })
         });
+
+        // for the moment, a stupid interval makes the job
+        setInterval(function(){
+            $.get("peers/dht_status" , function(data){
+                Object.keys(data).forEach(function(peerIndex){
+                    updatePeerStatus(peerIndex, data[peerIndex]);
+                });
+                $.post("peers/dht_announce");
+            });
+        }, 2500);
+
     })();
 
 </script>

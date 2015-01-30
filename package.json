@@ -12,9 +12,11 @@
     "bittorrent-dht": "^2.6.4",
     "body-parser": "^1.10.2",
     "cozy-stub": "^1.0.0",
+    "create-torrent": "^3.8.0",
     "domain-name-parser": "0.0.5",
     "express": "^4.11.1",
     "native-dns": "^0.7.0",
+    "parse-torrent": "^4.0.0",
     "path-extra": "^0.3.0"
   }
 }
