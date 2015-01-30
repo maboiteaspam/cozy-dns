@@ -4,7 +4,7 @@ A frontend UI to manage a bunch of DNS&DHT able node.
 
 Create a peer. Then few more peers.
 
-It will connect to a local DHT table.
+They will connect each other and create a DHT table on your localhost.
 
 Select any node, attach it a domain.
 
