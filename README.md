@@ -14,9 +14,9 @@ Try to resolve the domain from this node, it will use local lookup (Plain object
 
 Try to resolve the domain from another node, it will fallback to a DHT query.
 
-For that it will transform the domain into a torrent file.
+It will transform the domain name string into a torrent file.
 
-The performs a DHT.lookup of torrent.infoHash and record a new transaction.
+Perform a DHT.lookup of the torrent.infoHash value, then record a new transaction.
 
 Meanwhile, it also listens to DHT.on('peer') event.
 
