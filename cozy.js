@@ -19,6 +19,7 @@ DHT.K = 1;
 
 
 var is_valid_dns = function(dns_name){
+  return true;
   var parsedDomain = parse(dns_name);
   return ! parsedDomain.tokenized.length < 2;
 };
@@ -36,7 +37,7 @@ var queryDns = function(dnsQuery, dnsSolver, then){
   var dReq = dns.Request({
     question: question,
     server: dnsSolver,
-    timeout: 100000
+    timeout: 1000
   });
 
   dReq.on('timeout', function () {
@@ -79,6 +80,10 @@ var DDnsConsumer = function(opts){
   this.addDns = function(newDns){
     if ( is_valid_dns(newDns) && localDns.indexOf(newDns) === -1) {
       localDns.push(newDns);
+      createTorrent(new Buffer(newDns), {name:newDns}, function (err, torrent) {
+        torrent = parseTorrent(torrent);
+        dhTable.announce(torrent.infoHash, opts.dhtPort);
+      });
       return true;
     }
     return false;
@@ -93,7 +98,7 @@ var DDnsConsumer = function(opts){
 
   this.announceAllDns = function(){
     localDns.forEach(function(dns){
-      console.log('announcing ' + dns);
+     // console.log('announcing ' + dns);
       createTorrent(new Buffer(dns), {name:dns}, function (err, torrent) {
         torrent = parseTorrent(torrent);
         dhTable.announce(torrent.infoHash, opts.dhtPort);
@@ -146,6 +151,7 @@ var DDnsConsumer = function(opts){
     });
     dhTable.on('node', function (addr, hash, from) {
       console.log(dhtAddress + ' node ');
+      console.log(addr, from)
     });
     dhTable.on('error', function (err) {
       console.log(dhtAddress + ' error ');
@@ -158,16 +164,18 @@ var DDnsConsumer = function(opts){
       console.log(dhtAddress + ' announce ');
       console.log(addr, hash, from)
     });
-    dhTable.on('peer', function (addr, hash, from) {
-      if (transactions[hash] ) {
-        var response = transactions[hash].response;
-        var name = transactions[hash].name;
+    dhTable.on('peer', function (addr, infoHash, from) {
+      var transaction = transactions[infoHash];
+      if (transaction) {
+        var response = transaction.response;
+        var name = transaction.name;
         response.answer.push(dns.A({
           name: name,
-          address: from,
+          address: from.split(':')[0],
           ttl: 1
         }));
-        delete transactions[hash];
+        response.send();
+        delete transactions[infoHash];
       }
     });
   };
