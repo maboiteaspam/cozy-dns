@@ -149,8 +149,8 @@ var DDnsConsumer = function(opts){
       console.log(addr, from)
     });
     dhTable.on('node', function (addr, hash, from) {
-      console.log(dhtAddress + ' node ');
-      console.log(addr, from)
+      //console.log(dhtAddress + ' node ');
+      //console.log(addr, from)
     });
     dhTable.on('error', function (err) {
       console.log(dhtAddress + ' error ');
@@ -238,7 +238,7 @@ var cozyHandler = {
 
       var peerOpts = {
         hostname: options.hostname || '127.0.0.1',
-        dnsPort: options.getPort(),
+        dnsPort: lastPeerIndex==1?53:options.getPort(),
         dhtPort: options.getPort()
       };
       var peer = new DDnsConsumer(peerOpts);
